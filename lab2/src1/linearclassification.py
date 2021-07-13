@@ -22,7 +22,7 @@ class LinearClassification:
         需要你实现的部分
         '''
         train_num = (train_features.shape)[0]
-        W = np.ones((8,1), dtype=float)
+        W = np.ones(((train_features.shape)[1],1), dtype=float)
         epochs = self.epochs
         while epochs > 0:
             for i in range(train_num):

@@ -1,7 +1,9 @@
+
 import numpy as np
 import cvxopt #用于求解线性规划
 from process_data import load_and_process_data
 from evaluation import get_micro_F1,get_macro_F1,get_acc
+import random
 
 
 #根据指定类别main_class生成1/-1标签
@@ -28,7 +30,7 @@ class SupportVectorMachine:
         self.Epsilon=Epsilon
 
     '''KERNEL用于计算两个样本x1,x2的核函数'''
-    def KERNEL(self, x1, x2, kernel='Gauss', d=2, sigma=1):
+    def KERNEL(self, x1, x2, kernel='Linear', d=2, sigma=1):
         #d是多项式核的次数,sigma为Gauss核的参数
         K = 0
         if kernel == 'Gauss':
@@ -50,9 +52,63 @@ class SupportVectorMachine:
         '''
         需要你实现的部分
         '''
+        m = train_data.shape[0]
+        P = np.zeros((m, m))
+        temp = train_data
+        for i in range(m):
+            for j in range(m):
+                P[i][j] = self.KERNEL(temp[i], temp[j], self.kernel) * train_label[i] * train_label[j]
 
+        q = np.ones((m, 1))
+        q = -1 * q
+        G1 = np.eye(m, dtype=int)
+        G2 = np.eye(m, dtype=int)
+        G2 = -1 * G2
+        G = np.r_[G1, G2]
+        h1 = np.zeros((m, 1))
+        for i in range(m):
+            h1[i] = self.C
+        h2 = np.zeros((m, 1))
+        h = np.r_[h1, h2]
+        A = train_label.reshape(1, m)
+        b = np.zeros((1, 1))
+        P = P.astype(np.double)
+        q = q.astype(np.double)
+        G = G.astype(np.double)
+        h = h.astype(np.double)
+        A = A.astype(np.double)
+        b = b.astype(np.double)
+        P_1 = cvxopt.matrix(P)
+        q_1 = cvxopt.matrix(q)
+        G_1 = cvxopt.matrix(G)
+        h_1 = cvxopt.matrix(h)
+        A_1 = cvxopt.matrix(A)
+        b_1 = cvxopt.matrix(b)
+        sol = cvxopt.solvers.qp(P_1, q_1, G_1, h_1, A_1, b_1)
+        sol_x = sol['x']
+        alphas = np.array(sol_x)
 
+        b_star = 0
+        for i in range(m):
+            if alphas[i] < self.Epsilon:
+                alphas[i] = 0
+        for i in range(m):
+            if alphas[i] > 0 and alphas[i] < self.C:
+                b_star = train_label[i]
+                xi = train_data[i].reshape(-1,1)
+                for j in range(m):
+                    b_star = b_star - alphas[j] * train_label[j] * (self.KERNEL(train_data[j], xi))
+                break
 
+        m = test_data.shape[0]
+        pred = np.zeros((m,1),dtype=float)
+        for i in range(m):
+            pred_i = b_star
+            xi = test_data[i].reshape(-1, 1)
+            for j in range(train_data.shape[0]):
+                pred_i = pred_i + alphas[j] * train_label[j] * (self.KERNEL(train_data[j], xi))
+            pred[i][0] = pred_i
+        return pred
 
 
 def main():
@@ -87,7 +143,7 @@ def main():
     predictions=np.array(predictions)
     #one-vs-all, 最终分类结果选择最大score对应的类别
     pred=np.argmax(predictions,axis=0)+1
-
+    #print(predictions)
     # 计算准确率Acc及多分类的F1-score
     print("Acc: "+str(get_acc(test_label,pred)))
     print("macro-F1: "+str(get_macro_F1(test_label,pred)))
